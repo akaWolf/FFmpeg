@@ -259,11 +259,19 @@ redo:
     cur_auth_type       = s->auth_state.auth_type;
     cur_proxy_auth_type = s->auth_state.auth_type;
 
-    location_changed = http_open_cnx_internal(h, options);
-    if (location_changed < 0)
-        goto fail;
-
     attempts++;
+
+    location_changed = http_open_cnx_internal(h, options);
+    if (location_changed < 0) {
+        if (attempts < 5) {
+            av_log(h, AV_LOG_ERROR, "Couldn't get HTTP resource, retrying...\n");
+            if (s->hd)
+                ffurl_closep(&s->hd);
+            goto redo;
+        } else
+            goto fail;
+    }
+
     if (s->http_code == 401) {
         if ((cur_auth_type == HTTP_AUTH_NONE || s->auth_state.stale) &&
             s->auth_state.auth_type != HTTP_AUTH_NONE && attempts < 4) {
